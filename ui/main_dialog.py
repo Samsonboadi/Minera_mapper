@@ -839,9 +839,9 @@ class MainDialog(QDialog):
 
 
     def create_aster_card_fixed(self):
-        """FIXED: Create ASTER processing card with proper mineral mapping options"""
+        """FIXED: Create ASTER processing card with proper button connections"""
         
-        # File selection (existing code)
+        # File selection group
         file_group = QGroupBox("📁 ASTER L2 Data File")
         file_group.setStyleSheet("""
             QGroupBox { font-weight: bold; border: 1px solid #dee2e6; border-radius: 6px; 
@@ -851,6 +851,8 @@ class MainDialog(QDialog):
         file_layout = QVBoxLayout(file_group)
         
         file_row = QHBoxLayout()
+        
+        # File display label
         self.aster_file_display = QLabel("No file selected")
         self.aster_file_display.setStyleSheet("""
             QLabel { background-color: #f8f9fa; border: 2px dashed #dee2e6;
@@ -859,15 +861,18 @@ class MainDialog(QDialog):
         self.aster_file_display.setWordWrap(True)
         file_row.addWidget(self.aster_file_display, 1)
         
+        # Browse button
         self.browse_btn = QPushButton("📁 Browse")
         self.browse_btn.setStyleSheet(self.get_secondary_button_style())
-        self.browse_btn.clicked.connect(self.browse_aster_file)
-        file_row.addWidget(self.browse_btn)
         
+        # CRITICAL FIX: Connect to the fixed browse method
+        self.browse_btn.clicked.connect(self.browse_aster_file_fixed)
+        
+        file_row.addWidget(self.browse_btn)
         file_layout.addLayout(file_row)
         
-        # Processing options
-        options_group = QGroupBox("⚙️ Processing Options")
+        # Processing options group
+        options_group = QGroupBox("🔧 Processing Options (Enhanced)")
         options_group.setStyleSheet("""
             QGroupBox { font-weight: bold; border: 1px solid #dee2e6; border-radius: 6px; 
                     margin-top: 10px; padding-top: 10px; }
@@ -896,7 +901,7 @@ class MainDialog(QDialog):
         norm_layout.addStretch()
         options_layout.addLayout(norm_layout)
         
-        # Processing checkboxes
+        # Processing option checkboxes
         self.aster_atmospheric = QCheckBox("🌤️ Apply atmospheric correction")
         self.aster_ratios = QCheckBox("🧮 Calculate mineral ratios")
         self.aster_ratios.setChecked(True)
@@ -905,8 +910,8 @@ class MainDialog(QDialog):
         self.aster_quality = QCheckBox("🔍 Perform quality assessment")
         self.aster_quality.setChecked(True)
         
-        # CRITICAL FIX: Mineral mapping checkbox
-        self.aster_mineral_mapping = QCheckBox("🗺️ Enable comprehensive mineral mapping")
+        # CRITICAL: Mineral mapping checkbox
+        self.aster_mineral_mapping = QCheckBox("🗺️ Run mineral mapping analysis")
         self.aster_mineral_mapping.setChecked(True)
         self.aster_mineral_mapping.setToolTip(
             "Perform comprehensive mineral mapping analysis including:\n"
@@ -924,27 +929,146 @@ class MainDialog(QDialog):
         options_layout.addWidget(self.aster_ratios)
         options_layout.addWidget(self.aster_composites)
         options_layout.addWidget(self.aster_quality)
-        options_layout.addWidget(self.aster_mineral_mapping)  # CRITICAL: Add mineral mapping
+        options_layout.addWidget(self.aster_mineral_mapping)
         
         # Add mineral target selection
-        self.create_mineral_target_selection(options_layout)
+        self.create_mineral_target_selection_fixed(options_layout)
         
-        # Process button
+        # Process button section
         process_layout = QHBoxLayout()
         process_layout.addStretch()
         
+        # CRITICAL FIX: Create process button with initial disabled state
         self.process_aster_btn = QPushButton("🚀 Process ASTER Data")
-        self.process_aster_btn.setStyleSheet(self.get_primary_button_style())
-        self.process_aster_btn.clicked.connect(self.process_aster_data_fixed)  # Use fixed method
+        self.process_aster_btn.setEnabled(False)  # Start disabled
+        self.process_aster_btn.setStyleSheet(self.get_disabled_button_style())
+        
+        # CRITICAL FIX: Connect to the fixed processing method
+        self.process_aster_btn.clicked.connect(self.process_aster_data_fixed)
+        
         process_layout.addWidget(self.process_aster_btn)
         
-        # Main layout
+        # Create main layout
         card_layout = QVBoxLayout()
         card_layout.addWidget(file_group)
         card_layout.addWidget(options_group)
         card_layout.addLayout(process_layout)
         
         return card_layout
+
+
+
+    def get_disabled_button_style(self):
+        """Disabled button style"""
+        return """
+            QPushButton {
+                background-color: #6c757d;
+                color: #ffffff;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:disabled {
+                background-color: #adb5bd;
+                color: #6c757d;
+            }
+        """
+
+
+    def create_mineral_target_selection_fixed(self, layout):
+        """FIXED: Create mineral target selection checkboxes"""
+        try:
+            targets_group = QGroupBox("🎯 Exploration Targets")
+            targets_group.setStyleSheet("""
+                QGroupBox { font-weight: bold; border: 1px solid #dee2e6; border-radius: 6px; 
+                        margin-top: 10px; padding-top: 10px; }
+                QGroupBox::title { color: #495057; subcontrol-origin: margin; left: 10px; padding: 0 8px; }
+            """)
+            targets_layout = QVBoxLayout(targets_group)
+            
+            # Create target checkboxes
+            target_configs = [
+                ('target_gold', '🥇 Gold deposits and hydrothermal alteration'),
+                ('target_iron', '🔴 Iron oxide and magnetite deposits'),
+                ('target_lithium', '🔋 Lithium-bearing minerals and pegmatites'),
+                ('target_clay', '🏺 Clay minerals (kaolinite, illite, smectite)'),
+                ('target_carbonate', '🗿 Carbonate minerals and limestone'),
+                ('target_silica', '💎 Silica and quartz deposits')
+            ]
+            
+            for attr_name, description in target_configs:
+                checkbox = QCheckBox(description)
+                checkbox.setChecked(True)  # Default enabled
+                checkbox.setToolTip(f"Enable {attr_name.replace('target_', '')} exploration analysis")
+                targets_layout.addWidget(checkbox)
+                setattr(self, attr_name, checkbox)
+            
+            layout.addWidget(targets_group)
+            
+        except Exception as e:
+            print(f"DEBUG: Error creating mineral target selection: {str(e)}")
+
+
+    def browse_aster_file_fixed(self):
+        """FIXED: Browse for ASTER file and properly enable the process button"""
+        try:
+            # File dialog
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select ASTER L2 Data File",
+                "",
+                "ASTER Files (*.zip *.hdf *.h5 *.hdf5);;All Files (*)"
+            )
+            
+            if file_path:
+                # Store the file path
+                self.aster_file_path = file_path
+                
+                # Update the display
+                file_name = os.path.basename(file_path)
+                try:
+                    file_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
+                    display_text = f"📁 {file_name}\n📏 Size: {file_size:.1f} MB"
+                except:
+                    display_text = f"📁 {file_name}"
+                
+                # Update the file display label
+                if hasattr(self, 'aster_file_display'):
+                    self.aster_file_display.setText(display_text)
+                    self.aster_file_display.setStyleSheet("""
+                        QLabel { 
+                            background-color: #e8f5e8; border: 2px solid #28a745;
+                            padding: 12px; border-radius: 6px; color: #155724; 
+                        }
+                    """)
+                
+                # CRITICAL FIX: Enable the process button
+                if hasattr(self, 'process_aster_btn'):
+                    self.process_aster_btn.setEnabled(True)
+                    self.process_aster_btn.setStyleSheet(self.get_primary_button_style())
+                    print(f"DEBUG: Process button enabled: {self.process_aster_btn.isEnabled()}")
+                
+                # Log the selection
+                if hasattr(self, 'log_widget'):
+                    self.log_widget.add_message(f"📁 Selected file: {file_name}", "INFO")
+                    try:
+                        file_size = os.path.getsize(file_path) / (1024 * 1024)
+                        self.log_widget.add_message(f"📏 File size: {file_size:.1f} MB", "INFO")
+                    except:
+                        pass
+                
+                # Force UI update
+                self.update()
+                QApplication.processEvents()
+                
+            else:
+                print("DEBUG: No file selected")
+                
+        except Exception as e:
+            print(f"DEBUG: Error in browse_aster_file_fixed: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to select file:\n\n{str(e)}")
 
 
 
@@ -1300,7 +1424,36 @@ class MainDialog(QDialog):
                 background-color: #dee2e6;
             }
         """
-    
+
+
+
+    def debug_button_state(self):
+        """Debug method to check button state"""
+        if hasattr(self, 'process_aster_btn'):
+            print(f"DEBUG: Process button exists: True")
+            print(f"DEBUG: Process button enabled: {self.process_aster_btn.isEnabled()}")
+            print(f"DEBUG: Process button text: {self.process_aster_btn.text()}")
+            print(f"DEBUG: File path set: {hasattr(self, 'aster_file_path')}")
+            if hasattr(self, 'aster_file_path'):
+                print(f"DEBUG: File path: {getattr(self, 'aster_file_path', 'None')}")
+        else:
+            print("DEBUG: Process button does not exist!")
+
+
+
+    def force_enable_process_button(self):
+        """Force enable the process button for debugging"""
+        if hasattr(self, 'process_aster_btn'):
+            self.process_aster_btn.setEnabled(True)
+            self.process_aster_btn.setStyleSheet(self.get_primary_button_style())
+            print("DEBUG: Process button force enabled")
+            return True
+        else:
+            print("DEBUG: Cannot force enable - button doesn't exist")
+            return False
+
+
+
     def get_danger_button_style(self):
         """Get danger button style"""
         return """
@@ -1353,6 +1506,436 @@ class MainDialog(QDialog):
         else:
             event.accept()
 
+
+
+
+
+    def process_aster_data_fixed(self):
+        """FIXED: Process ASTER data using the enhanced processor thread"""
+        if not hasattr(self, 'aster_file_path') or not self.aster_file_path:
+            QMessageBox.warning(self, "Warning", "Please select an ASTER file first.")
+            return
+        
+        # Validate file exists
+        if not os.path.exists(self.aster_file_path):
+            QMessageBox.critical(self, "Error", "Selected ASTER file does not exist.")
+            return
+            
+        self.set_processing_state(True)
+        
+        try:
+            # Clear log and start fresh
+            self.log_widget.clear_and_init()
+            self.log_widget.add_message("🗺️ Mineral Prospectivity Mapping - Processing Log", "HEADER")
+            self.log_widget.add_message("=" * 60, "HEADER")
+            self.log_widget.add_message("Ready to process geological data", "INFO")
+            self.log_widget.add_message("Starting enhanced ASTER processing...", "HEADER")
+            self.log_widget.add_message(f"Input file: {os.path.basename(self.aster_file_path)}", "INFO")
+            self.update_status("Initializing ASTER processing...", "🟠")
+            
+            # Get processing options with safe defaults
+            processing_options = {
+                'enable_resampling': getattr(self, 'enable_resampling', type('obj', (object,), {'isChecked': lambda: True})()).isChecked(),
+                'normalization_method': getattr(self, 'normalization_combo', type('obj', (object,), {'currentText': lambda: 'percentile'})()).currentText(),
+                'atmospheric_correction': getattr(self, 'aster_atmospheric', type('obj', (object,), {'isChecked': lambda: False})()).isChecked(),
+                'calculate_ratios': getattr(self, 'aster_ratios', type('obj', (object,), {'isChecked': lambda: True})()).isChecked(),
+                'create_composites': getattr(self, 'aster_composites', type('obj', (object,), {'isChecked': lambda: True})()).isChecked(),
+                'quality_assessment': getattr(self, 'aster_quality', type('obj', (object,), {'isChecked': lambda: True})()).isChecked(),
+                'mineral_mapping': getattr(self, 'aster_mineral_mapping', type('obj', (object,), {'isChecked': lambda: True})()).isChecked(),
+                
+                # Add mineral targets
+                'target_gold': True,
+                'target_iron': True,
+                'target_lithium': True,
+                'target_clay': True,
+                'target_carbonate': True,
+                'target_silica': True
+            }
+            
+            self.log_widget.add_message(f"Processing options: {processing_options}", "INFO")
+            
+            # CRITICAL FIX: Use the enhanced processor thread from your existing aster_processor.py
+            try:
+                # Import from your existing file structure
+                from ..processing.aster_processor import EnhancedAsterProcessingThread
+                
+                # Create the processor thread
+                self.processing_thread = EnhancedAsterProcessingThread(
+                    self.aster_file_path, 
+                    processing_options
+                )
+                
+                # Connect signals
+                self.processing_thread.progress_updated.connect(
+                    lambda value, message: (
+                        self.update_progress(value, message),
+                        self.log_widget.add_message(f"[{value}%] {message}", "PROGRESS")
+                    )
+                )
+                
+                self.processing_thread.log_message.connect(
+                    lambda message, level: self.log_widget.add_message(message, level)
+                )
+                
+                self.processing_thread.processing_finished.connect(
+                    self.on_processing_finished_enhanced
+                )
+                
+                self.log_widget.add_message("✅ Enhanced ASTER processor loaded", "SUCCESS")
+                self.log_widget.add_message("✅ Signal connections established", "SUCCESS")
+                
+                # Start processing
+                self.processing_thread.start()
+                self.log_widget.add_message("🚀 Enhanced ASTER processing started", "INFO")
+                
+            except ImportError as e:
+                self.log_widget.add_message(f"❌ Could not import enhanced processor: {str(e)}", "ERROR")
+                self.log_widget.add_message("Falling back to basic processor...", "WARNING")
+                
+                # Fallback: Use the original processor if the enhanced one fails
+                self.run_fallback_aster_processing(processing_options)
+                
+        except Exception as e:
+            import traceback
+            error_msg = traceback.format_exc()
+            self.log_widget.add_message(f"❌ Failed to start processing: {str(e)}", "ERROR")
+            self.log_widget.add_message(f"Full error trace: {error_msg}", "ERROR")
+            self.set_processing_state(False)
+            QMessageBox.critical(self, "Processing Error", f"Failed to start ASTER processing:\n\n{str(e)}")
+
+
+    def run_fallback_aster_processing(self, processing_options):
+        """Fallback to use your original aster_processor if enhanced version fails"""
+        try:
+            self.log_widget.add_message("Using fallback ASTER processing...", "INFO")
+            
+            # Import your original processor
+            from ..processing.aster_processor import AsterProcessor
+            
+            # Create a simple processing thread wrapper
+            class FallbackProcessingThread(QThread):
+                progress_updated = pyqtSignal(int, str)
+                log_message = pyqtSignal(str, str)
+                processing_finished = pyqtSignal(bool, str)
+                
+                def __init__(self, file_path, options):
+                    super().__init__()
+                    self.file_path = file_path
+                    self.options = options
+                    self.processor = AsterProcessor()
+                
+                def run(self):
+                    try:
+                        # Use your original processor
+                        success = self.processor.process_aster_file_enhanced(
+                            self.file_path,
+                            self.options,
+                            lambda v, m: self.progress_updated.emit(v, m),
+                            lambda m, l: self.log_message.emit(m, l),
+                            lambda: False
+                        )
+                        
+                        if success:
+                            self.processing_finished.emit(True, "Processing completed")
+                        else:
+                            self.processing_finished.emit(False, "Processing failed")
+                            
+                    except Exception as e:
+                        self.processing_finished.emit(False, str(e))
+            
+            # Create and start the fallback thread
+            self.processing_thread = FallbackProcessingThread(self.aster_file_path, processing_options)
+            
+            # Connect signals
+            self.processing_thread.progress_updated.connect(
+                lambda value, message: (
+                    self.update_progress(value, message),
+                    self.log_widget.add_message(f"[{value}%] {message}", "PROGRESS")
+                )
+            )
+            
+            self.processing_thread.log_message.connect(
+                lambda message, level: self.log_widget.add_message(message, level)
+            )
+            
+            self.processing_thread.processing_finished.connect(
+                self.on_processing_finished_enhanced
+            )
+            
+            self.processing_thread.start()
+            self.log_widget.add_message("🚀 Fallback processing started", "INFO")
+            
+        except Exception as e:
+            self.log_widget.add_message(f"❌ Fallback processing failed: {str(e)}", "ERROR")
+            self.set_processing_state(False)
+
+
+    def on_processing_finished_enhanced(self, success, message):
+        """FIXED: Handle processing completion from enhanced processor"""
+        self.set_processing_state(False)
+        
+        if success:
+            self.log_widget.add_message("🎉 ASTER processing completed successfully!", "SUCCESS")
+            self.log_widget.add_message("🎉 ASTER processing completed successfully!", "SUCCESS")
+            self.update_status("Processing completed successfully", "🟢")
+            
+            # CRITICAL: Refresh QGIS to ensure layers are visible
+            try:
+                from qgis.utils import iface
+                if iface:
+                    # Refresh the map canvas
+                    iface.mapCanvas().refresh()
+                    
+                    # Refresh the layer tree view
+                    iface.layerTreeView().refreshLayerSymbology()
+                    
+                    # Force a complete refresh
+                    iface.mapCanvas().refreshAllLayers()
+                    
+                    self.log_widget.add_message("✅ QGIS interface refreshed", "INFO")
+                    
+                    # Try to zoom to the extent of new layers
+                    project = QgsProject.instance()
+                    layers = project.mapLayers()
+                    
+                    if layers:
+                        # Find the most recently added layers (mineral maps)
+                        mineral_layers = [layer for layer in layers.values() 
+                                        if 'mineral' in layer.name().lower()]
+                        
+                        if mineral_layers:
+                            # Zoom to the first mineral layer
+                            first_layer = mineral_layers[0]
+                            if first_layer.isValid():
+                                extent = first_layer.extent()
+                                if not extent.isEmpty():
+                                    iface.mapCanvas().setExtent(extent)
+                                    iface.mapCanvas().refresh()
+                                    self.log_widget.add_message("🔍 Zoomed to mineral mapping results", "INFO")
+                    
+            except Exception as e:
+                self.log_widget.add_message(f"⚠️ Could not refresh QGIS: {str(e)}", "WARNING")
+            
+            # Show success message
+            QMessageBox.information(
+                self,
+                "✅ Processing Complete",
+                "ASTER data processing completed successfully!\n\n"
+                f"Status: {message}\n\n"
+                "Results have been added to your QGIS project.\n"
+                "Check the Layers panel to view the processed data.\n\n"
+                "Mineral mapping layers should include:\n"
+                "• Clay index\n"
+                "• Kaolinite index\n"
+                "• Illite index\n"
+                "• Iron oxide\n"
+                "• Carbonate index\n"
+                "• NDVI\n"
+                "• Gold exploration composite"
+            )
+            
+        else:
+            self.log_widget.add_message(f"❌ Processing failed: {message}", "ERROR")
+            self.update_status("Processing failed", "🔴")
+            
+            QMessageBox.critical(
+                self,
+                "❌ Processing Failed",
+                f"ASTER data processing failed:\n\n{message}\n\n"
+                "Please check the log for more details.\n\n"
+                "Common issues:\n"
+                "• File format not supported\n"
+                "• Insufficient disk space\n"
+                "• Missing dependencies\n"
+                "• Corrupted input file"
+            )
+
+
+    def set_processing_state(self, processing):
+        """Update UI state during processing"""
+        try:
+            # Disable/enable the process button
+            if hasattr(self, 'process_aster_btn'):
+                self.process_aster_btn.setEnabled(not processing)
+                if processing:
+                    self.process_aster_btn.setText("⏸️ Processing...")
+                else:
+                    self.process_aster_btn.setText("🚀 Process ASTER Data")
+            
+            # Show/hide progress bar
+            if hasattr(self, 'progress_bar'):
+                self.progress_bar.setVisible(processing)
+                if not processing:
+                    self.progress_bar.setValue(0)
+            
+            # Update other UI elements
+            if hasattr(self, 'browse_btn'):
+                self.browse_btn.setEnabled(not processing)
+                
+        except Exception as e:
+            # Don't crash if UI update fails
+            pass
+
+
+    def update_progress(self, value, message):
+        """Update progress bar and status"""
+        try:
+            if hasattr(self, 'progress_bar'):
+                self.progress_bar.setValue(value)
+                self.progress_bar.setFormat(f"{value}% - {message}")
+            
+            # Update status label if available
+            self.update_status(message, "🔄" if value < 100 else "✅")
+            
+        except Exception as e:
+            # Don't crash if progress update fails
+            pass
+
+
+    def update_status(self, message, icon="ℹ️"):
+        """Update status message"""
+        try:
+            if hasattr(self, 'status_label'):
+                self.status_label.setText(f"{icon} {message}")
+            elif hasattr(self, 'log_widget'):
+                # Fallback to logging if no status label
+                self.log_widget.add_message(f"{icon} {message}", "INFO")
+        except Exception as e:
+            # Don't crash if status update fails
+            pass
+
+
+    def cancel_processing(self):
+        """Cancel the current processing"""
+        try:
+            if hasattr(self, 'processing_thread') and self.processing_thread.isRunning():
+                if hasattr(self.processing_thread, 'stop_processing'):
+                    self.processing_thread.stop_processing()
+                
+                self.processing_thread.quit()
+                self.processing_thread.wait(3000)  # Wait up to 3 seconds
+                
+                self.log_widget.add_message("⏹️ Processing cancelled by user", "WARNING")
+                self.set_processing_state(False)
+                self.update_status("Processing cancelled", "⏹️")
+                
+        except Exception as e:
+            self.log_widget.add_message(f"⚠️ Error cancelling processing: {str(e)}", "WARNING")
+
+
+    def validate_aster_file(self, file_path):
+        """Validate that the selected file is a valid ASTER file"""
+        if not file_path or not os.path.exists(file_path):
+            return False, "File does not exist"
+        
+        # Check file extension
+        valid_extensions = ['.zip', '.hdf', '.h5', '.hdf5']
+        if not any(file_path.lower().endswith(ext) for ext in valid_extensions):
+            return False, f"Invalid file format. Expected: {', '.join(valid_extensions)}"
+        
+        # Check file size
+        try:
+            file_size = os.path.getsize(file_path)
+            if file_size < 1024:  # Less than 1KB
+                return False, "File appears to be too small"
+            elif file_size > 1024 * 1024 * 1024:  # Larger than 1GB
+                return True, "Warning: File is very large and may take a long time to process"
+        except Exception as e:
+            return False, f"Could not check file size: {str(e)}"
+        
+        return True, "File appears valid"
+
+
+    def browse_aster_file(self):
+        """FIXED: Browse for ASTER file with validation"""
+        try:
+            # File dialog
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select ASTER L2 Data File",
+                "",
+                "ASTER Files (*.zip *.hdf *.h5 *.hdf5);;All Files (*)"
+            )
+            
+            if file_path:
+                # Validate the file
+                is_valid, message = self.validate_aster_file(file_path)
+                
+                if is_valid:
+                    self.aster_file_path = file_path
+                    
+                    # Update display
+                    file_name = os.path.basename(file_path)
+                    file_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
+                    
+                    display_text = f"📁 {file_name}\n📏 Size: {file_size:.1f} MB"
+                    
+                    if hasattr(self, 'aster_file_display'):
+                        self.aster_file_display.setText(display_text)
+                        self.aster_file_display.setStyleSheet("""
+                            QLabel { 
+                                background-color: #e8f5e8; border: 2px solid #28a745;
+                                padding: 12px; border-radius: 6px; color: #155724; 
+                            }
+                        """)
+                    
+                    # Log selection
+                    if hasattr(self, 'log_widget'):
+                        self.log_widget.add_message(f"📁 Selected file: {file_name}", "INFO")
+                        self.log_widget.add_message(f"📏 File size: {file_size:.1f} MB", "INFO")
+                    
+                    # Show warning if needed
+                    if "Warning" in message:
+                        QMessageBox.warning(self, "File Size Warning", message)
+                    
+                else:
+                    # Invalid file
+                    QMessageBox.critical(self, "Invalid File", f"Cannot use selected file:\n\n{message}")
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to select file:\n\n{str(e)}")
+
+
+    # Add this method to ensure your UI has all the required components
+    def ensure_ui_components(self):
+        """Ensure all required UI components exist (fallback creation)"""
+        try:
+            # Create progress bar if it doesn't exist
+            if not hasattr(self, 'progress_bar'):
+                from qgis.PyQt.QtWidgets import QProgressBar
+                self.progress_bar = QProgressBar()
+                self.progress_bar.setVisible(False)
+                
+                # Try to add it to the layout if possible
+                if hasattr(self, 'layout') and self.layout:
+                    self.layout.addWidget(self.progress_bar)
+            
+            # Create status label if it doesn't exist
+            if not hasattr(self, 'status_label'):
+                from qgis.PyQt.QtWidgets import QLabel
+                self.status_label = QLabel("Ready")
+                
+                # Try to add it to the layout if possible
+                if hasattr(self, 'layout') and self.layout:
+                    self.layout.addWidget(self.status_label)
+            
+            # Ensure log widget exists
+            if not hasattr(self, 'log_widget'):
+                # Create a basic log widget if none exists
+                from qgis.PyQt.QtWidgets import QTextEdit
+                self.log_widget = QTextEdit()
+                self.log_widget.setReadOnly(True)
+                
+                # Add basic logging methods
+                def add_message(self, message, level):
+                    self.append(f"[{level}] {message}")
+                
+                self.log_widget.add_message = add_message.__get__(self.log_widget)
+                self.log_widget.clear_and_init = lambda: self.log_widget.clear()
+                
+        except Exception as e:
+            # Don't crash if UI component creation fails
+            pass
 
 class WorkingAsterProcessingThread(QThread):
     """FIXED: Actually performs mineral mapping instead of just simulating it"""
