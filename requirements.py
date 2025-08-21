@@ -1,0 +1,13 @@
+numpy==1.24.4
+scipy
+pandas==1.5.3
+scikit-learn==1.2.2
+matplotlib==3.7.1
+rasterio==1.3.8
+scikit-fuzzy
+spectral==0.23.1
+opencv-python==4.7.0.72
+netCDF4==1.6.4
+scikit-image==0.20.0
+geopandas==0.13.2
+Pillow==9.5.0

@@ -1,6 +1,6 @@
 [general]
 name=Mineral Prospectivity Mapping
-qgisMinimumVersion=3.22
+qgisMinimumVersion=3.20
 description=Advanced QGIS plugin for mineral exploration with multi-source data fusion, spectral analysis, and geological modeling
 version=1.0.0
 author=Geological Survey Team
