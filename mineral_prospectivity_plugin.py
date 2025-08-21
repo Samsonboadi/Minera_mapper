@@ -11,10 +11,25 @@ from qgis.PyQt.QtWidgets import QAction, QMenu, QMessageBox
 from qgis.core import QgsProject, QgsMessageLog, Qgis, QgsRasterLayer, QgsVectorLayer
 
 # Add plugin directory to Python path
+# CRITICAL FIX: Add plugin directory to Python path FIRST
 plugin_dir = os.path.dirname(__file__)
 if plugin_dir not in sys.path:
     sys.path.insert(0, plugin_dir)
 
+# CRITICAL FIX: Add algorithms directory specifically  
+algorithms_dir = os.path.join(plugin_dir, 'algorithms')
+if algorithms_dir not in sys.path:
+    sys.path.insert(0, algorithms_dir)
+
+# CRITICAL FIX: Add processing directory
+processing_dir = os.path.join(plugin_dir, 'processing')
+if processing_dir not in sys.path:
+    sys.path.insert(0, processing_dir)
+
+# CRITICAL FIX: Add utils directory
+utils_dir = os.path.join(plugin_dir, 'utils')
+if utils_dir not in sys.path:
+    sys.path.insert(0, utils_dir)
 
 class MineralProspectivityPlugin:
     """Fixed main plugin class with comprehensive error handling"""
@@ -296,26 +311,19 @@ class MineralProspectivityPlugin:
             self.log_message(f"Error during unload: {str(e)}", Qgis.Warning)
     
     def run_main(self):
-        """Run main plugin dialog with comprehensive error handling"""
+        """Run main plugin dialog - FIXED IMPORTS"""
         try:
-            # Check critical dependencies first
-            critical_missing = [issue for issue in self.dependency_issues 
-                              if "required" in issue.lower()]
-            if critical_missing:
-                QMessageBox.critical(
-                    self.iface.mainWindow(),
-                    "Missing Dependencies",
-                    "Cannot open main dialog due to missing critical dependencies.\n\n"
-                    + "\n".join(critical_missing)
-                )
-                return
-            
-            # Import here to avoid import errors on plugin load
+            # CRITICAL FIX: Import with better error handling
             try:
                 from .ui.main_dialog import MainDialog
             except ImportError:
-                # Try alternative import path
-                from ui.main_dialog import MainDialog
+                # Fallback imports
+                try:
+                    from ui.main_dialog import MainDialog
+                except ImportError:
+                    # Last resort - direct import
+                    sys.path.insert(0, os.path.join(self.plugin_dir, 'ui'))
+                    from main_dialog import MainDialog
             
             if self.main_dlg is None:
                 self.main_dlg = MainDialog(self.iface)
@@ -330,14 +338,19 @@ class MineralProspectivityPlugin:
             self.show_import_error("Main Dialog", str(e))
         except Exception as e:
             self.show_generic_error("Main Dialog", str(e))
-    
+
+            
     def run_fusion(self):
-        """Run data fusion dialog with error handling"""
+        """Run data fusion dialog - FIXED IMPORTS"""
         try:
             try:
                 from .ui.data_fusion_dialog import DataFusionDialog
             except ImportError:
-                from ui.data_fusion_dialog import DataFusionDialog
+                try:
+                    from ui.data_fusion_dialog import DataFusionDialog
+                except ImportError:
+                    sys.path.insert(0, os.path.join(self.plugin_dir, 'ui'))
+                    from data_fusion_dialog import DataFusionDialog
             
             if self.fusion_dlg is None:
                 self.fusion_dlg = DataFusionDialog(self.iface)
@@ -354,12 +367,16 @@ class MineralProspectivityPlugin:
             self.show_generic_error("Data Fusion Dialog", str(e))
     
     def run_correlation(self):
-        """Run correlation analysis dialog with error handling"""
+        """Run correlation analysis dialog - FIXED IMPORTS"""
         try:
             try:
                 from .ui.correlation_dialog import CorrelationDialog
             except ImportError:
-                from ui.correlation_dialog import CorrelationDialog
+                try:
+                    from ui.correlation_dialog import CorrelationDialog
+                except ImportError:
+                    sys.path.insert(0, os.path.join(self.plugin_dir, 'ui'))
+                    from correlation_dialog import CorrelationDialog
             
             if self.correlation_dlg is None:
                 self.correlation_dlg = CorrelationDialog(self.iface)

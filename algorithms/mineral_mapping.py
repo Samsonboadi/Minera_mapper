@@ -1,14 +1,12 @@
-"""
-Advanced mineral mapping algorithms for geological exploration
-"""
-
 import numpy as np
 import json
 import os
 
-# Optional imports with fallbacks
+# Safe imports with fallbacks
 try:
     import rasterio
+    from rasterio.warp import reproject, Resampling
+    from rasterio.transform import from_bounds
     HAS_RASTERIO = True
 except ImportError:
     HAS_RASTERIO = False
@@ -17,6 +15,7 @@ try:
     from sklearn.cluster import KMeans
     from sklearn.mixture import GaussianMixture
     from sklearn.decomposition import FastICA, NMF
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
@@ -30,18 +29,24 @@ except ImportError:
     HAS_SCIPY = False
 
 class MineralMapper:
-    """Advanced mineral mapping using multiple algorithms"""
+    """Enhanced mineral mapping with proper ASTER processing - CORE FIXES"""
     
     def __init__(self):
         self.data = None
+        self.normalized_data = None
         self.mineral_signatures = {}
         self.wavelengths = None
         self.spatial_dims = None
         self.profile = None
+        self.valid_mask = None
         self.mineral_abundance_maps = {}
+        self.normalization_params = {}
+        # CRITICAL FIX: Add resampling properties
+        self.target_resolution = 15.0
+        self.resampled_data = None
         
     def load_data(self, raster_path):
-        """Load hyperspectral/multispectral data"""
+        """Load data with proper validation - ENHANCED"""
         try:
             with rasterio.open(raster_path) as src:
                 self.data = src.read()
@@ -52,28 +57,162 @@ class MineralMapper:
                 self.spectral_data = self.data.reshape(n_bands, -1).T
                 self.spatial_dims = (height, width)
                 
-                # Set default wavelengths
-                self.wavelengths = np.linspace(400, 2500, n_bands)
+                # CRITICAL FIX: Set proper ASTER wavelengths
+                if n_bands == 9:  # ASTER VNIR+SWIR
+                    self.wavelengths = np.array([560, 660, 810, 1650, 2165, 2205, 2260, 2330, 2395])
+                elif n_bands == 3:  # ASTER VNIR
+                    self.wavelengths = np.array([560, 660, 810])
+                elif n_bands == 6:  # ASTER SWIR
+                    self.wavelengths = np.array([1650, 2165, 2205, 2260, 2330, 2395])
+                else:
+                    self.wavelengths = np.linspace(400, 2500, n_bands)
                 
-                # Mask invalid pixels
-                self.valid_mask = np.all(self.spectral_data > 0, axis=1)
-                self.valid_mask &= np.all(np.isfinite(self.spectral_data), axis=1)
+                # CRITICAL FIX: Create proper valid pixel mask
+                self.valid_mask = self.create_enhanced_valid_mask()
                 
                 print(f"Loaded data: {n_bands} bands, {height}x{width} pixels")
+                print(f"Valid pixels: {np.sum(self.valid_mask)} / {len(self.valid_mask)} ({100*np.sum(self.valid_mask)/len(self.valid_mask):.1f}%)")
                 return True
                 
         except Exception as e:
             print(f"Error loading data: {str(e)}")
             return False
     
-    def set_mineral_signatures(self, mineral_dict):
-        """Set mineral spectral signatures"""
-        self.mineral_signatures = mineral_dict
+    def create_enhanced_valid_mask(self):
+        """Create comprehensive valid pixel mask - CRITICAL FIX"""
+        mask = np.ones(self.spectral_data.shape[0], dtype=bool)
+        
+        # Remove pixels with zero values
+        mask &= np.all(self.spectral_data > 0, axis=1)
+        
+        # Remove pixels with NaN or infinite values
+        mask &= np.all(np.isfinite(self.spectral_data), axis=1)
+        
+        # Remove saturated pixels (16-bit data)
+        mask &= np.all(self.spectral_data < 65535, axis=1)
+        
+        # CRITICAL FIX: Remove unrealistic reflectance values
+        mean_reflectance = np.mean(self.spectral_data, axis=1)
+        mask &= (mean_reflectance > 50) & (mean_reflectance < 30000)
+        
+        # CRITICAL FIX: Remove pixels with flat spectra (likely bad data)
+        spectral_std = np.std(self.spectral_data, axis=1)
+        mask &= spectral_std > 10  # Minimum spectral variation
+        
+        return mask
+    
+    def normalize_data_enhanced(self, method='min_max', per_band=True):
+        """Enhanced data normalization - CRITICAL FIX"""
+        if self.spectral_data is None:
+            raise ValueError("No data loaded")
+        
+        valid_data = self.spectral_data[self.valid_mask]
+        normalized_data = self.spectral_data.copy().astype(np.float32)
+        
+        if method == 'min_max':
+            if per_band:
+                # Normalize each band separately (RECOMMENDED for ASTER)
+                for band_idx in range(self.spectral_data.shape[1]):
+                    band_data = valid_data[:, band_idx]
+                    if len(band_data) > 0:
+                        min_val, max_val = np.min(band_data), np.max(band_data)
+                        if max_val > min_val:
+                            normalized_data[self.valid_mask, band_idx] = (
+                                (band_data - min_val) / (max_val - min_val)
+                            )
+            else:
+                # Global normalization
+                min_val, max_val = np.min(valid_data), np.max(valid_data)
+                if max_val > min_val:
+                    normalized_data[self.valid_mask] = (
+                        (valid_data - min_val) / (max_val - min_val)
+                    )
+        
+        elif method == 'percentile':
+            # CRITICAL FIX: Percentile normalization (robust to outliers)
+            if per_band:
+                for band_idx in range(self.spectral_data.shape[1]):
+                    band_data = valid_data[:, band_idx]
+                    if len(band_data) > 0:
+                        p2, p98 = np.percentile(band_data, [2, 98])
+                        if p98 > p2:
+                            normalized_data[self.valid_mask, band_idx] = np.clip(
+                                (band_data - p2) / (p98 - p2), 0, 1
+                            )
+            else:
+                p2, p98 = np.percentile(valid_data, [2, 98])
+                if p98 > p2:
+                    normalized_data[self.valid_mask] = np.clip(
+                        (valid_data - p2) / (p98 - p2), 0, 1
+                    )
+        
+        self.normalized_data = normalized_data
+        self.normalization_params = {
+            'method': method,
+            'per_band': per_band,
+            'valid_pixels': np.sum(self.valid_mask)
+        }
+        
+        print(f"Data normalized using {method} method (per_band={per_band})")
+        return True
+    
+    def resample_to_target_resolution(self, bands_data, transforms, target_res=15.0):
+        """Resample bands to target resolution - CRITICAL FIX"""
+        if not HAS_RASTERIO:
+            print("Warning: rasterio not available, skipping resampling")
+            return bands_data
+        
+        resampled_bands = []
+        
+        # Use first band as reference for bounds
+        reference_transform = transforms[0]
+        reference_bounds = rasterio.transform.array_bounds(
+            bands_data[0].shape[0], bands_data[0].shape[1], reference_transform
+        )
+        
+        # Calculate target dimensions
+        target_width = int((reference_bounds[2] - reference_bounds[0]) / target_res)
+        target_height = int((reference_bounds[3] - reference_bounds[1]) / target_res)
+        
+        target_transform = from_bounds(
+            reference_bounds[0], reference_bounds[1], 
+            reference_bounds[2], reference_bounds[3],
+            target_width, target_height
+        )
+        
+        for i, (band_data, transform) in enumerate(zip(bands_data, transforms)):
+            try:
+                # Create output array
+                resampled_data = np.empty((target_height, target_width), dtype=np.float32)
+                
+                # Resample
+                reproject(
+                    source=band_data,
+                    destination=resampled_data,
+                    src_transform=transform,
+                    dst_transform=target_transform,
+                    resampling=Resampling.bilinear,
+                    src_nodata=0,
+                    dst_nodata=np.nan
+                )
+                
+                resampled_bands.append(resampled_data)
+                print(f"Resampled band {i+1} to {target_res}m resolution")
+                
+            except Exception as e:
+                print(f"Failed to resample band {i}: {str(e)}")
+                # Fallback: use original data
+                resampled_bands.append(band_data)
+        
+        return resampled_bands
     
     def spectral_unmixing_nnls(self, mineral_list):
-        """Non-negative least squares spectral unmixing"""
+        """Enhanced spectral unmixing - FIXED"""
         if not self.mineral_signatures:
             raise ValueError("No mineral signatures loaded")
+        
+        # Use normalized data if available
+        spectral_data = self.normalized_data if self.normalized_data is not None else self.spectral_data
         
         # Prepare endmember matrix
         endmembers = []
@@ -82,11 +221,19 @@ class MineralMapper:
         for mineral in mineral_list:
             if mineral in self.mineral_signatures:
                 signature = self.mineral_signatures[mineral]['signature']
-                # Interpolate to match data wavelengths if needed
-                if len(signature) != self.spectral_data.shape[1]:
-                    signature = np.interp(self.wavelengths, 
-                                        self.mineral_signatures[mineral]['wavelengths'], 
-                                        signature)
+                
+                # CRITICAL FIX: Interpolate signature to match wavelengths
+                if len(signature) != spectral_data.shape[1]:
+                    signature = np.interp(
+                        self.wavelengths, 
+                        self.mineral_signatures[mineral]['wavelengths'], 
+                        signature
+                    )
+                
+                # CRITICAL FIX: Normalize signature to [0,1] if data is normalized
+                if self.normalized_data is not None:
+                    signature = (signature - np.min(signature)) / (np.max(signature) - np.min(signature))
+                
                 endmembers.append(signature)
                 mineral_names.append(mineral)
         
@@ -94,268 +241,133 @@ class MineralMapper:
             raise ValueError("No valid endmembers found")
         
         endmember_matrix = np.array(endmembers).T
-        n_pixels = self.spectral_data.shape[0]
+        n_pixels = spectral_data.shape[0]
         n_endmembers = len(endmembers)
         
         # Initialize abundance maps
         abundances = np.zeros((n_pixels, n_endmembers))
+        rmse_values = np.zeros(n_pixels)
         
-        # Perform NNLS for each pixel
+        # CRITICAL FIX: Perform NNLS only for valid pixels
+        valid_count = 0
         for i in range(n_pixels):
             if self.valid_mask[i]:
-                pixel_spectrum = self.spectral_data[i, :]
+                pixel_spectrum = spectral_data[i, :]
                 try:
-                    # Non-negative least squares
-                    abundance, residual = nnls(endmember_matrix, pixel_spectrum)
-                    # Normalize to sum to 1
+                    if HAS_SCIPY:
+                        # Use NNLS from scipy
+                        abundance, residual = nnls(endmember_matrix, pixel_spectrum)
+                    else:
+                        # Fallback: simple least squares
+                        abundance = np.linalg.lstsq(endmember_matrix, pixel_spectrum, rcond=None)[0]
+                        abundance = np.maximum(abundance, 0)  # Force non-negative
+                    
+                    # Calculate RMSE
+                    predicted = endmember_matrix @ abundance
+                    rmse_values[i] = np.sqrt(np.mean((pixel_spectrum - predicted)**2))
+                    
+                    # Normalize abundances to sum to 1
                     if abundance.sum() > 0:
                         abundance = abundance / abundance.sum()
+                    
                     abundances[i, :] = abundance
-                except:
+                    valid_count += 1
+                    
+                except Exception as e:
                     abundances[i, :] = 0
+                    rmse_values[i] = np.inf
+        
+        print(f"Spectral unmixing completed for {valid_count} pixels")
         
         # Convert to spatial format
         mineral_maps = {}
         for i, mineral_name in enumerate(mineral_names):
             abundance_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
-            abundance_map[self.valid_mask] = abundances[:, i]
+            valid_indices = np.where(self.valid_mask)[0]
+            abundance_map[valid_indices] = abundances[valid_indices, i]
             mineral_maps[mineral_name] = abundance_map.reshape(self.spatial_dims)
+        
+        # Add RMSE map
+        rmse_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
+        rmse_map[valid_indices] = rmse_values[valid_indices]
+        mineral_maps['unmixing_rmse'] = rmse_map.reshape(self.spatial_dims)
         
         return mineral_maps
     
-    def independent_component_analysis(self, n_components=10):
-        """Independent Component Analysis for blind source separation"""
-        if self.spectral_data is None:
-            raise ValueError("No data loaded")
+    def calculate_spectral_indices(self):
+        """Calculate common spectral indices for mineral detection"""
+        if self.normalized_data is None:
+            print("Warning: Using original data for indices. Consider normalizing first.")
+            data = self.spectral_data
+        else:
+            data = self.normalized_data
         
-        # Prepare clean data
-        valid_data = self.spectral_data[self.valid_mask]
-        
-        # Apply ICA
-        ica = FastICA(n_components=n_components, random_state=42, max_iter=1000)
-        ica_components = ica.fit_transform(valid_data)
-        
-        # Convert to spatial format
-        ica_maps = {}
-        for i in range(n_components):
-            component_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
-            component_map[self.valid_mask] = ica_components[:, i]
-            ica_maps[f'ICA_Component_{i+1}'] = component_map.reshape(self.spatial_dims)
-        
-        # Get mixing matrix (endmembers)
-        endmember_spectra = ica.components_
-        
-        return ica_maps, endmember_spectra
-    
-    def non_negative_matrix_factorization(self, n_components=10):
-        """Non-negative Matrix Factorization for mineral unmixing"""
-        if self.spectral_data is None:
-            raise ValueError("No data loaded")
-        
-        valid_data = self.spectral_data[self.valid_mask]
-        
-        # Ensure non-negative data
-        valid_data = np.maximum(valid_data, 0)
-        
-        # Apply NMF
-        nmf = NMF(n_components=n_components, init='random', random_state=42, max_iter=1000)
-        nmf_abundances = nmf.fit_transform(valid_data)
-        nmf_endmembers = nmf.components_
-        
-        # Convert to spatial format
-        nmf_maps = {}
-        for i in range(n_components):
-            abundance_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
-            abundance_map[self.valid_mask] = nmf_abundances[:, i]
-            nmf_maps[f'NMF_Component_{i+1}'] = abundance_map.reshape(self.spatial_dims)
-        
-        return nmf_maps, nmf_endmembers
-    
-    def gaussian_mixture_clustering(self, n_clusters=10):
-        """Gaussian Mixture Model clustering for mineral identification"""
-        if self.spectral_data is None:
-            raise ValueError("No data loaded")
-        
-        valid_data = self.spectral_data[self.valid_mask]
-        
-        # Apply Gaussian Mixture Model
-        gmm = GaussianMixture(n_components=n_clusters, random_state=42, max_iter=300)
-        cluster_labels = gmm.fit_predict(valid_data)
-        cluster_probs = gmm.predict_proba(valid_data)
-        
-        # Convert labels to spatial format
-        label_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], -1)
-        label_map[self.valid_mask] = cluster_labels
-        label_map = label_map.reshape(self.spatial_dims)
-        
-        # Convert probabilities to spatial format
-        prob_maps = {}
-        for i in range(n_clusters):
-            prob_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
-            prob_map[self.valid_mask] = cluster_probs[:, i]
-            prob_maps[f'Cluster_{i+1}_Probability'] = prob_map.reshape(self.spatial_dims)
-        
-        # Get cluster centers (representative spectra)
-        cluster_centers = gmm.means_
-        
-        return label_map, prob_maps, cluster_centers
-    
-    def k_means_clustering(self, n_clusters=10):
-        """K-means clustering for mineral identification"""
-        if self.spectral_data is None:
-            raise ValueError("No data loaded")
-        
-        valid_data = self.spectral_data[self.valid_mask]
-        
-        # Apply K-means
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-        cluster_labels = kmeans.fit_predict(valid_data)
-        
-        # Convert to spatial format
-        label_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], -1)
-        label_map[self.valid_mask] = cluster_labels
-        label_map = label_map.reshape(self.spatial_dims)
-        
-        # Calculate distances to cluster centers
-        distances = kmeans.transform(valid_data)
-        
-        # Convert distances to spatial format
-        distance_maps = {}
-        for i in range(n_clusters):
-            distance_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
-            distance_map[self.valid_mask] = distances[:, i]
-            distance_maps[f'Cluster_{i+1}_Distance'] = distance_map.reshape(self.spatial_dims)
-        
-        return label_map, distance_maps, kmeans.cluster_centers_
-    
-    def create_mineral_maps(self, minerals, method='spectral_unmixing'):
-        """Create mineral abundance maps using specified method"""
-        results = {}
-        
-        if method == 'spectral_unmixing':
-            mineral_maps = self.spectral_unmixing_nnls(minerals)
-            results.update(mineral_maps)
-            
-        elif method == 'ica':
-            ica_maps, endmembers = self.independent_component_analysis()
-            results.update(ica_maps)
-            results['endmember_spectra'] = endmembers
-            
-        elif method == 'nmf':
-            nmf_maps, endmembers = self.non_negative_matrix_factorization()
-            results.update(nmf_maps)
-            results['endmember_spectra'] = endmembers
-            
-        elif method == 'gmm_clustering':
-            label_map, prob_maps, centers = self.gaussian_mixture_clustering()
-            results['cluster_labels'] = label_map
-            results.update(prob_maps)
-            results['cluster_centers'] = centers
-            
-        elif method == 'kmeans_clustering':
-            label_map, distance_maps, centers = self.k_means_clustering()
-            results['cluster_labels'] = label_map
-            results.update(distance_maps)
-            results['cluster_centers'] = centers
-        
-        self.mineral_abundance_maps = results
-        return results
-    
-    def apply_spatial_filtering(self, mineral_maps, filter_type='gaussian', sigma=1.0):
-        """Apply spatial filtering to mineral maps"""
-        filtered_maps = {}
-        
-        for mineral_name, mineral_map in mineral_maps.items():
-            if isinstance(mineral_map, np.ndarray) and mineral_map.ndim == 2:
-                if filter_type == 'gaussian':
-                    # Handle NaN values
-                    valid_mask = ~np.isnan(mineral_map)
-                    filtered_map = mineral_map.copy()
-                    if valid_mask.any():
-                        filtered_map[valid_mask] = gaussian_filter(
-                            mineral_map[valid_mask].reshape(mineral_map.shape)[valid_mask], 
-                            sigma=sigma
-                        )
-                    filtered_maps[f'{mineral_name}_filtered'] = filtered_map
-                else:
-                    filtered_maps[mineral_name] = mineral_map
-            else:
-                filtered_maps[mineral_name] = mineral_map
-        
-        return filtered_maps
-    
-    def calculate_mineral_indices(self, mineral_maps):
-        """Calculate mineral-specific spectral indices"""
         indices = {}
         
-        for mineral_name, abundance_map in mineral_maps.items():
-            if isinstance(abundance_map, np.ndarray) and abundance_map.ndim == 2:
-                # Calculate basic statistics
-                valid_data = abundance_map[~np.isnan(abundance_map)]
-                if len(valid_data) > 0:
-                    indices[f'{mineral_name}_mean'] = np.mean(valid_data)
-                    indices[f'{mineral_name}_std'] = np.std(valid_data)
-                    indices[f'{mineral_name}_max'] = np.max(valid_data)
-                    indices[f'{mineral_name}_coverage'] = len(valid_data) / abundance_map.size
-                    
-                    # Calculate percentiles
-                    indices[f'{mineral_name}_p95'] = np.percentile(valid_data, 95)
-                    indices[f'{mineral_name}_p90'] = np.percentile(valid_data, 90)
-                    indices[f'{mineral_name}_p75'] = np.percentile(valid_data, 75)
+        # Assuming ASTER band ordering: [560, 660, 810, 1650, 2165, 2205, 2260, 2330, 2395]
+        if data.shape[1] >= 9:
+            # Clay mineral indices
+            indices['clay_index'] = (data[:, 4] + data[:, 6]) / (2 * data[:, 5])  # (B5+B7)/(2*B6)
+            indices['kaolinite_index'] = data[:, 5] / data[:, 6]  # B6/B7
+            indices['illite_index'] = data[:, 4] / data[:, 5]  # B5/B6
+            
+            # Iron oxide indices
+            indices['iron_oxide'] = data[:, 1] / data[:, 0]  # Red/Green
+            
+            # Carbonate index
+            indices['carbonate_index'] = (data[:, 6] + data[:, 8]) / (2 * data[:, 7])  # (B7+B9)/(2*B8)
+            
+            # Vegetation indices
+            indices['ndvi'] = (data[:, 2] - data[:, 1]) / (data[:, 2] + data[:, 1])  # (NIR-Red)/(NIR+Red)
         
-        return indices
+        # Convert to spatial format
+        spatial_indices = {}
+        for index_name, index_values in indices.items():
+            index_map = np.full(self.spatial_dims[0] * self.spatial_dims[1], np.nan)
+            valid_indices = np.where(self.valid_mask)[0]
+            index_map[valid_indices] = index_values[valid_indices]
+            spatial_indices[index_name] = index_map.reshape(self.spatial_dims)
+        
+        return spatial_indices
     
-    def save_mineral_maps(self, mineral_maps, output_dir):
-        """Save mineral maps to GeoTIFF files"""
+    def save_results(self, results, output_dir):
+        """Save all results to files"""
         os.makedirs(output_dir, exist_ok=True)
-        
         saved_files = []
         
-        for mineral_name, mineral_map in mineral_maps.items():
-            if isinstance(mineral_map, np.ndarray) and mineral_map.ndim == 2:
-                output_path = os.path.join(output_dir, f"{mineral_name}_map.tif")
+        # Update profile for output
+        output_profile = self.profile.copy()
+        output_profile.update({
+            'count': 1,
+            'dtype': 'float32',
+            'nodata': np.nan
+        })
+        
+        for result_name, result_data in results.items():
+            if isinstance(result_data, np.ndarray) and result_data.ndim == 2:
+                output_path = os.path.join(output_dir, f"{result_name}.tif")
                 
-                # Create output profile
-                output_profile = self.profile.copy()
-                output_profile.update({
-                    'count': 1,
-                    'dtype': 'float32',
-                    'nodata': np.nan
-                })
-                
-                with rasterio.open(output_path, 'w', **output_profile) as dst:
-                    dst.write(mineral_map.astype(np.float32), 1)
-                
-                saved_files.append(output_path)
+                try:
+                    with rasterio.open(output_path, 'w', **output_profile) as dst:
+                        dst.write(result_data.astype(np.float32), 1)
+                    saved_files.append(output_path)
+                    print(f"Saved {result_name} to {output_path}")
+                except Exception as e:
+                    print(f"Failed to save {result_name}: {str(e)}")
         
         # Save metadata
         metadata = {
-            'mineral_maps': list(mineral_maps.keys()),
+            'processing_date': str(np.datetime64('now')),
+            'normalization_params': self.normalization_params,
             'spatial_dimensions': self.spatial_dims,
             'wavelengths': self.wavelengths.tolist() if self.wavelengths is not None else None,
+            'mineral_signatures': self.mineral_signatures,
+            'valid_pixel_count': int(np.sum(self.valid_mask)) if self.valid_mask is not None else 0,
             'saved_files': saved_files
         }
         
-        metadata_path = os.path.join(output_dir, "mineral_mapping_metadata.json")
+        metadata_path = os.path.join(output_dir, "processing_metadata.json")
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         
         return saved_files
-    
-    def validate_mineral_maps(self, mineral_maps, reference_data=None):
-        """Validate mineral mapping results"""
-        validation_results = {}
-        
-        for mineral_name, mineral_map in mineral_maps.items():
-            if isinstance(mineral_map, np.ndarray) and mineral_map.ndim == 2:
-                valid_data = mineral_map[~np.isnan(mineral_map)]
-                
-                validation_results[mineral_name] = {
-                    'valid_pixels': len(valid_data),
-                    'coverage_percent': (len(valid_data) / mineral_map.size) * 100,
-                    'value_range': [float(np.min(valid_data)), float(np.max(valid_data))] if len(valid_data) > 0 else [0, 0],
-                    'mean_abundance': float(np.mean(valid_data)) if len(valid_data) > 0 else 0,
-                    'std_abundance': float(np.std(valid_data)) if len(valid_data) > 0 else 0
-                }
-        
-        return validation_results
