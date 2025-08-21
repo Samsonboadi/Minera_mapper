@@ -1,0 +1,75 @@
+QGIS Mineral Prospectivity Plugin - H5PY-FREE VERSION
+====================================================
+
+✅ FIXED: Eliminated h5py dependency completely to avoid DLL conflicts
+✅ NOW USES: GDAL's built-in HDF5/NetCDF support (already included with QGIS)
+
+SYSTEM REQUIREMENTS:
+- QGIS 3.22 or higher
+- Python 3.8+ (included with QGIS)
+
+INSTALLATION STEPS:
+
+1. INSTALL REDUCED PYTHON DEPENDENCIES
+   Open QGIS Python Console (Plugins -> Python Console) and run:
+
+   import subprocess
+   import sys
+   
+   # Streamlined package list - NO h5py needed!
+   packages = [
+       'numpy', 'scipy', 'pandas', 'scikit-learn', 'matplotlib', 
+       'scikit-fuzzy', 'spectral', 'opencv-python', 'scikit-image', 
+       'netcdf4', 'Pillow'
+   ]
+   
+   for package in packages:
+       try:
+           subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+           print(f"✅ Installed {package}")
+       except Exception as e:
+           print(f"❌ Failed to install {package}: {e}")
+
+   # Optional GIS packages (may have dependency issues in some QGIS installations)
+   optional_packages = ['rasterio', 'geopandas']
+   for package in optional_packages:
+       try:
+           subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+           print(f"✅ Installed optional {package}")
+       except Exception as e:
+           print(f"⚠️  Optional package {package} failed - plugin will work without it: {e}")
+
+2. INSTALL THE PLUGIN
+   - Download mineral_prospectivity_plugin_NO_H5PY.zip
+   - QGIS -> Plugins -> Manage and Install Plugins -> Install from ZIP
+   - Select the ZIP file and install
+   - Enable the plugin after installation
+
+3. VERIFY INSTALLATION
+   - Plugin should load without any h5py-related errors
+   - HDF5 files will be read using QGIS's built-in GDAL support
+   - All functionality preserved, better compatibility
+
+KEY IMPROVEMENTS IN THIS VERSION:
+✅ Removed h5py dependency completely
+✅ Uses GDAL's native HDF5 support (already in QGIS)
+✅ Eliminates Windows DLL conflicts
+✅ Fewer dependencies to install
+✅ More stable and compatible
+✅ Same functionality, better reliability
+
+SUPPORTED FILE FORMATS:
+- HDF4/HDF5 files (via GDAL) ✅
+- NetCDF files (via GDAL + netcdf4) ✅
+- GeoTIFF, JPEG2000, ENVI formats ✅
+- ASTER L2 Surface Reflectance ✅
+- Sentinel-2 data ✅
+- Vector formats (Shapefile, GeoPackage, etc.) ✅
+
+WHAT THIS FIXES:
+❌ "ModuleNotFoundError: No module named 'h5py'"
+❌ "DLL load failed while importing h5py"
+❌ "ImportError: DLL conflicts with h5py"
+❌ Windows-specific h5py installation issues
+
+If you had h5py problems before, this version should resolve them completely!

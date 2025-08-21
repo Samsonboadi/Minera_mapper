@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect x="2" y="2" width="28" height="28" fill="#FAFAFA" stroke="#E0E0E0" stroke-width="1"/>
+  
+  <!-- Correlation matrix grid -->
+  <g stroke="#BDBDBD" stroke-width="0.5" fill="none">
+    <!-- Horizontal lines -->
+    <line x1="4" y1="6" x2="28" y2="6"/>
+    <line x1="4" y1="10" x2="28" y2="10"/>
+    <line x1="4" y1="14" x2="28" y2="14"/>
+    <line x1="4" y1="18" x2="28" y2="18"/>
+    <line x1="4" y1="22" x2="28" y2="22"/>
+    <line x1="4" y1="26" x2="28" y2="26"/>
+    
+    <!-- Vertical lines -->
+    <line x1="4" y1="6" x2="4" y2="26"/>
+    <line x1="8" y1="6" x2="8" y2="26"/>
+    <line x1="12" y1="6" x2="12" y2="26"/>
+    <line x1="16" y1="6" x2="16" y2="26"/>
+    <line x1="20" y1="6" x2="20" y2="26"/>
+    <line x1="24" y1="6" x2="24" y2="26"/>
+    <line x1="28" y1="6" x2="28" y2="26"/>
+  </g>
+  
+  <!-- Correlation values represented by colored squares -->
+  <!-- Diagonal (perfect correlation = 1) -->
+  <rect x="4" y="6" width="4" height="4" fill="#1B5E20"/>
+  <rect x="8" y="10" width="4" height="4" fill="#1B5E20"/>
+  <rect x="12" y="14" width="4" height="4" fill="#1B5E20"/>
+  <rect x="16" y="18" width="4" height="4" fill="#1B5E20"/>
+  <rect x="20" y="22" width="4" height="4" fill="#1B5E20"/>
+  
+  <!-- High positive correlations -->
+  <rect x="4" y="10" width="4" height="4" fill="#388E3C"/>
+  <rect x="8" y="6" width="4" height="4" fill="#388E3C"/>
+  <rect x="16" y="22" width="4" height="4" fill="#43A047"/>
+  <rect x="20" y="18" width="4" height="4" fill="#43A047"/>
+  
+  <!-- Moderate correlations -->
+  <rect x="4" y="14" width="4" height="4" fill="#FDD835"/>
+  <rect x="12" y="6" width="4" height="4" fill="#FDD835"/>
+  <rect x="8" y="18" width="4" height="4" fill="#FFB74D"/>
+  <rect x="16" y="10" width="4" height="4" fill="#FFB74D"/>
+  
+  <!-- Low/negative correlations -->
+  <rect x="4" y="18" width="4" height="4" fill="#EF5350"/>
+  <rect x="16" y="6" width="4" height="4" fill="#EF5350"/>
+  <rect x="4" y="22" width="4" height="4" fill="#F44336"/>
+  <rect x="20" y="6" width="4" height="4" fill="#F44336"/>
+  
+  <!-- Scatter plot overlay -->
+  <g transform="translate(22,2)">
+    <rect x="0" y="0" width="8" height="8" fill="#FFFFFF" stroke="#666" stroke-width="0.5"/>
+    
+    <!-- Positive correlation scatter -->
+    <circle cx="1" cy="6.5" r="0.3" fill="#2196F3"/>
+    <circle cx="2" cy="5.5" r="0.3" fill="#2196F3"/>
+    <circle cx="3" cy="4.8" r="0.3" fill="#2196F3"/>
+    <circle cx="4" cy="3.5" r="0.3" fill="#2196F3"/>
+    <circle cx="5" cy="2.8" r="0.3" fill="#2196F3"/>
+    <circle cx="6" cy="2" r="0.3" fill="#2196F3"/>
+    <circle cx="7" cy="1.2" r="0.3" fill="#2196F3"/>
+    
+    <!-- Trend line -->
+    <line x1="0.5" y1="7" x2="7.5" y2="1" stroke="#FF5722" stroke-width="0.8"/>
+  </g>
+  
+  <!-- Labels -->
+  <text x="2" y="4" font-family="Arial" font-size="2" fill="#333">Variables</text>
+  
+  <!-- Correlation coefficient labels -->
+  <text x="6" y="8.5" font-family="Arial" font-size="1.5" fill="white" text-anchor="middle">1.0</text>
+  <text x="6" y="12.5" font-family="Arial" font-size="1.5" fill="white" text-anchor="middle">0.8</text>
+  <text x="14" y="12.5" font-family="Arial" font-size="1.5" fill="black" text-anchor="middle">0.3</text>
+  <text x="6" y="20.5" font-family="Arial" font-size="1.5" fill="white" text-anchor="middle">-0.6</text>
+  
+  <!-- Title -->
+  <text x="16" y="31" font-family="Arial" font-size="2.5" fill="#333" text-anchor="middle">Correlation Matrix</text>
+</svg>

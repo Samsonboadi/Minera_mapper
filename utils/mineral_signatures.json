@@ -1,0 +1,14 @@
+{
+  "minerals": {
+    "Hematite": {
+      "wavelengths": [560, 660, 820, 1650, 2165, 2205, 2260, 2330, 2395],
+      "signature": [0.15, 0.25, 0.50, 0.35, 0.20, 0.18, 0.15, 0.10, 0.08],
+      "description": "Iron oxide mineral, characteristic red color due to Fe3+ absorption"
+    },
+    "Kaolinite": {
+      "wavelengths": [560, 660, 820, 1650, 2165, 2205, 2260, 2330, 2395],
+      "signature": [0.10, 0.15, 0.25, 0.40, 0.60, 0.55, 0.35, 0.25, 0.20],
+      "description": "Clay mineral, strong absorption in SWIR due to Al-OH bonds"
+    }
+  }
+}

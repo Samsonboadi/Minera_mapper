@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Mineral Prospectivity Mapping</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="data_tab">
+      <attribute name="title">
+       <string>Data Input</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="data_layout">
+       <item>
+        <widget class="QGroupBox" name="data_input_group">
+         <property name="title">
+          <string>Input Data Layers</string>
+         </property>
+         <layout class="QGridLayout" name="data_grid">
+          <item row="0" column="0">
+           <widget class="QLabel" name="raster_label">
+            <property name="text">
+             <string>Primary Raster Data:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="raster_combo"/>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="load_data_btn">
+            <property name="text">
+             <string>Load Data</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="geological_label">
+            <property name="text">
+             <string>Geological Map:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="geological_combo"/>
+          </item>
+          <item row="1" column="2">
+           <widget class="QPushButton" name="load_geo_btn">
+            <property name="text">
+             <string>Load Data</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QDoubleSpinBox" name="geological_weight">
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.300000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="magnetic_label">
+            <property name="text">
+             <string>Magnetic Anomaly:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="magnetic_combo"/>
+          </item>
+          <item row="2" column="2">
+           <widget class="QPushButton" name="load_mag_btn">
+            <property name="text">
+             <string>Load Data</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="3">
+           <widget class="QDoubleSpinBox" name="magnetic_weight">
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="radiometric_label">
+            <property name="text">
+             <string>Radiometric Data:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="radiometric_combo"/>
+          </item>
+          <item row="3" column="2">
+           <widget class="QPushButton" name="load_rad_btn">
+            <property name="text">
+             <string>Load Data</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3">
+           <widget class="QDoubleSpinBox" name="radiometric_weight">
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.200000000000000</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="mineral_tab">
+      <attribute name="title">
+       <string>Mineral Selection</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="mineral_layout">
+       <item>
+        <widget class="QGroupBox" name="mineral_group">
+         <property name="title">
+          <string>Target Minerals</string>
+         </property>
+         <layout class="QVBoxLayout" name="mineral_list_layout">
+          <item>
+           <widget class="QListWidget" name="mineral_list">
+            <property name="selectionMode">
+             <enum>QAbstractItemView::MultiSelection</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="spectral_group">
+         <property name="title">
+          <string>Spectral Analysis Parameters</string>
+         </property>
+         <layout class="QGridLayout" name="spectral_grid">
+          <item row="0" column="0">
+           <widget class="QLabel" name="method_label">
+            <property name="text">
+             <string>Analysis Method:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="spectral_method_combo"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QPushButton" name="run_spectral_btn">
+            <property name="text">
+             <string>Run Spectral Analysis</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="run_mineral_btn">
+            <property name="text">
+             <string>Create Mineral Maps</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="prospectivity_tab">
+      <attribute name="title">
+       <string>Prospectivity Mapping</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="prospectivity_layout">
+       <item>
+        <widget class="QGroupBox" name="prospectivity_group">
+         <property name="title">
+          <string>Prospectivity Analysis</string>
+         </property>
+         <layout class="QGridLayout" name="prospectivity_grid">
+          <item row="0" column="0">
+           <widget class="QLabel" name="prospectivity_method_label">
+            <property name="text">
+             <string>Mapping Method:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="prospectivity_method_combo"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="fuzzy_logic_check">
+            <property name="text">
+             <string>Use Fuzzy Logic</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="uncertainty_check">
+            <property name="text">
+             <string>Include Uncertainty Analysis</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QPushButton" name="run_prospectivity_btn">
+            <property name="text">
+             <string>Generate Prospectivity Map</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="results_tab">
+      <attribute name="title">
+       <string>Results</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="results_layout">
+       <item>
+        <widget class="QGroupBox" name="results_group">
+         <property name="title">
+          <string>Analysis Results</string>
+         </property>
+         <layout class="QVBoxLayout" name="results_content">
+          <item>
+           <widget class="QTextEdit" name="results_text">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="export_results_btn">
+            <property name="text">
+             <string>Export Results</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progress_bar">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="status_label">
+     <property name="text">
+      <string>Ready</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

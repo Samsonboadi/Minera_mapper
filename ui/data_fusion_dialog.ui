@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>900</width>
+    <height>650</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Multi-Source Data Fusion</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="layers_tab">
+      <attribute name="title">
+       <string>Layer Selection</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="layers_layout">
+       <item>
+        <widget class="QGroupBox" name="available_group">
+         <property name="title">
+          <string>Available Layers</string>
+         </property>
+         <layout class="QVBoxLayout" name="available_layout">
+          <item>
+           <widget class="QListWidget" name="available_layers_list"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="add_layer_btn">
+            <property name="text">
+             <string>Add Layer →</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="fusion_group">
+         <property name="title">
+          <string>Fusion Layers</string>
+         </property>
+         <layout class="QVBoxLayout" name="fusion_layout">
+          <item>
+           <widget class="QTreeWidget" name="layer_tree"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="remove_layer_btn">
+            <property name="text">
+             <string>Remove Layer</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="parameters_tab">
+      <attribute name="title">
+       <string>Fusion Parameters</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="parameters_layout">
+       <item>
+        <widget class="QGroupBox" name="method_group">
+         <property name="title">
+          <string>Fusion Method</string>
+         </property>
+         <layout class="QGridLayout" name="method_grid">
+          <item row="0" column="0">
+           <widget class="QLabel" name="method_label">
+            <property name="text">
+             <string>Method:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="fusion_method_combo"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="normalize_check">
+            <property name="text">
+             <string>Normalize Data</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="normalization_combo"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="advanced_group">
+         <property name="title">
+          <string>Advanced Options</string>
+         </property>
+         <layout class="QGridLayout" name="advanced_grid">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="uncertainty_check">
+            <property name="text">
+             <string>Include Uncertainty Analysis</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QCheckBox" name="quality_check">
+            <property name="text">
+             <string>Quality Assessment</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="threshold_label">
+            <property name="text">
+             <string>Confidence Threshold:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="confidence_threshold">
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.050000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.700000000000000</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="correlation_tab">
+      <attribute name="title">
+       <string>Correlation Analysis</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="correlation_layout">
+       <item>
+        <widget class="QPushButton" name="calculate_correlation_btn">
+         <property name="text">
+          <string>Calculate Layer Correlations</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTableWidget" name="correlation_table"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="preview_tab">
+      <attribute name="title">
+       <string>Preview</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="preview_layout">
+       <item>
+        <widget class="QPushButton" name="preview_btn">
+         <property name="text">
+          <string>Generate Preview</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTextEdit" name="preview_text">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttons_layout">
+     <item>
+      <widget class="QPushButton" name="run_fusion_btn">
+       <property name="text">
+        <string>Run Fusion</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="export_btn">
+       <property name="text">
+        <string>Export Results</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progress_bar">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="status_label">
+     <property name="text">
+      <string>Ready</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,23 @@
+[general]
+name=Mineral Prospectivity Mapping
+qgisMinimumVersion=3.22
+description=Advanced QGIS plugin for mineral exploration with multi-source data fusion, spectral analysis, and geological modeling
+version=1.0.0
+author=Geological Survey Team
+email=support@geologicalsurvey.com
+
+about=This plugin provides comprehensive tools for mineral exploration and geological mapping using ASTER L2 VNIR SWIR surface reflectance data and Sentinel-2 imagery. Features include advanced spectral analysis, mineral identification algorithms, correlation analysis, multi-layer data fusion, prospectivity mapping, and statistical assessment tools for exploring gold, diamond, iron, lithium, clay and other minerals.
+
+tracker=https://github.com/geological-survey/mineral-prospectivity-plugin/issues
+repository=https://github.com/geological-survey/mineral-prospectivity-plugin
+
+tags=geology, mineral exploration, spectral analysis, remote sensing, ASTER, Sentinel-2, prospectivity mapping
+
+homepage=https://github.com/geological-survey/mineral-prospectivity-plugin
+category=Plugins
+icon=icons/plugin_icon.svg
+
+experimental=False
+deprecated=False
+
+hasProcessingProvider=yes

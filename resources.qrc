@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource>
+    <file>icons/plugin_icon.svg</file>
+    <file>icons/mineral_map.svg</file>
+    <file>icons/correlation.svg</file>
+    <file>icons/fusion.svg</file>
+  </qresource>
+</RCC>
