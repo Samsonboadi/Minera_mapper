@@ -9,6 +9,7 @@ import tempfile
 import zipfile
 import shutil
 import datetime
+import traceback
 from qgis.PyQt.QtCore import QThread, pyqtSignal
 from qgis.core import QgsRasterLayer, QgsProject, QgsMessageLog, Qgis
 
@@ -47,72 +48,59 @@ class AsterProcessingThread(QThread):
         self.should_stop = True
     
     def run(self):
-        """Main processing with HDF-EOS support"""
+        """Main processing function that runs in separate thread - FIXED VERSION"""
         try:
-            self.log_message.emit("Starting ASTER processing with HDF-EOS support...")
-            self.progress_updated.emit(5, "Initializing...")
+            # Create callback functions for the processor
+            def log_callback(message):
+                """Thread-safe log callback"""
+                self.log_message.emit(message)
             
-            # Handle ZIP extraction
-            if self.file_path.lower().endswith('.zip'):
-                hdf_files = self.extract_zip_file()
-                if not hdf_files:
-                    self.error_occurred.emit("No HDF files found in ZIP")
-                    return
-            else:
-                hdf_files = [self.file_path]
+            def progress_callback(value, message):
+                """Thread-safe progress callback"""
+                self.progress_updated.emit(value, message)
             
-            self.progress_updated.emit(15, "Loading ASTER bands using GDAL...")
+            def should_stop_callback():
+                """Thread-safe stop check callback"""
+                return self.should_stop
             
-            # CRITICAL FIX: Use GDAL-based HDF reading
-            all_band_data = []
-            geotransforms = []
+            # Start processing
+            log_callback("🚀 Starting ASTER data processing...")
+            progress_callback(5, "Initializing processing...")
             
-            for i, hdf_file in enumerate(hdf_files):
-                self.log_message.emit(f"Processing HDF file {i+1}/{len(hdf_files)}: {os.path.basename(hdf_file)}")
-                
-                # Use GDAL method for HDF-EOS
-                extracted_data = self.read_hdf_eos_file(hdf_file)
-                if extracted_data:
-                    all_band_data.append(extracted_data)
-                    # Store geotransforms for later use
-                    if 'vnir_geotransform' in extracted_data:
-                        geotransforms.append(extracted_data['vnir_geotransform'])
-                    elif 'swir_geotransform' in extracted_data:
-                        geotransforms.append(extracted_data['swir_geotransform'])
-            
-            if not all_band_data:
-                self.error_occurred.emit("No valid data could be extracted from HDF files")
+            if self.should_stop:
                 return
             
-            self.progress_updated.emit(40, "Processing and resampling bands...")
+            # Validate file
+            log_callback(f"📁 Validating file: {os.path.basename(self.file_path)}")
+            if not self.processor.validate_aster_file(self.file_path):
+                self.error_occurred.emit("File validation failed")
+                return
             
-            # Process the extracted data
-            combined_result = self.process_combined_data(all_band_data, geotransforms)
+            progress_callback(10, "File validated successfully")
             
-            if combined_result:
-                self.progress_updated.emit(90, "Adding to QGIS...")
-                layer = self.create_qgis_layer(combined_result['output_path'])
-                
-                self.progress_updated.emit(100, "Processing complete!")
-                
-                results = {
-                    'layer': layer,
-                    'file_path': combined_result['output_path'],
-                    'band_count': combined_result.get('band_count', 0),
-                    'resolution': self.target_resolution
-                }
-                
-                self.processing_finished.emit(True, results)
+            if self.should_stop:
+                return
+            
+            # Process the file with proper callbacks
+            result = self.processor.process_aster_file_threaded(
+                self.file_path, 
+                progress_callback,
+                log_callback,
+                should_stop_callback
+            )
+            
+            if result and not self.should_stop:
+                log_callback("✅ ASTER processing completed successfully!")
+                self.processing_finished.emit(True, result)
+            elif self.should_stop:
+                log_callback("⏹️ Processing cancelled by user")
+                self.processing_finished.emit(False, {})
             else:
-                self.error_occurred.emit("Failed to process combined data")
-            
+                self.error_occurred.emit("Processing failed")
+                
         except Exception as e:
-            import traceback
-            error_msg = f"Processing failed: {str(e)}\n{traceback.format_exc()}"
-            self.log_message.emit(error_msg)
-            self.error_occurred.emit(str(e))
-        finally:
-            self.cleanup_temp_dirs()
+            error_msg = f"Processing error: {str(e)}\n{traceback.format_exc()}"
+            self.error_occurred.emit(error_msg)
     
     def extract_zip_file(self):
         """Extract ZIP file and find HDF files"""
@@ -141,199 +129,359 @@ class AsterProcessingThread(QThread):
             self.log_message.emit(f"ZIP extraction failed: {str(e)}")
             return []
     
-    def read_hdf_eos_file(self, hdf_path):
-        """Corrected HDF-EOS reader for ASTER Surface Reflectance data"""
+    def read_hdf_with_gdal(self, file_path, log_callback):
+        """Read HDF file using GDAL with improved error handling - FIXED VERSION"""
+        gdal.UseExceptions()
+        
         try:
-            self.log_message.emit(f"Reading HDF-EOS file: {os.path.basename(hdf_path)}")
-            
-            if not HAS_GDAL:
-                raise Exception("GDAL not available for HDF-EOS reading")
-            
-            gdal.UseExceptions()
-            
-            # Open the HDF file
-            dataset = gdal.Open(hdf_path, gdal.GA_ReadOnly)
+            log_callback(f"🔧 Opening HDF file with GDAL...")
+            dataset = gdal.Open(file_path, gdal.GA_ReadOnly)
             if dataset is None:
-                raise Exception(f"GDAL could not open HDF file: {hdf_path}")
+                raise Exception("GDAL could not open the file")
             
-            # Get subdatasets
+            data = {}
             subdatasets = dataset.GetSubDatasets()
-            self.log_message.emit(f"Found {len(subdatasets)} subdatasets")
             
-            if not subdatasets:
-                raise Exception("No subdatasets found in HDF-EOS file")
-            
-            extracted_data = {
-                'vnir_bands': {},
-                'swir_bands': {}
-            }
-            
-            for i, (subdataset_path, subdataset_desc) in enumerate(subdatasets):
-                try:
-                    self.log_message.emit(f"Processing subdataset {i+1}: {subdataset_desc}")
+            if subdatasets:
+                log_callback(f"📊 Found {len(subdatasets)} subdatasets")
+                
+                for i, subdataset in enumerate(subdatasets):
+                    name = subdataset[1].upper()
+                    path = subdataset[0]
                     
-                    # Skip QA and metadata subdatasets
-                    desc_upper = subdataset_desc.upper()
-                    if any(skip_term in desc_upper for skip_term in 
-                        ['QA', 'QUALITY', 'DATAPLANE', 'FLAG', 'METADATA']):
-                        self.log_message.emit(f"Skipping: {subdataset_desc}")
+                    log_callback(f"📋 Processing subdataset {i+1}: {name}")
+                    
+                    if 'QA_DATAPLANE' in name:
+                        log_callback(f"⏭️ Skipping QA band: {name}")
                         continue
-                    
-                    # CRITICAL FIX: Build proper HDF4_EOS subdataset path
-                    # The subdataset_path from GetSubDatasets() may not be complete
-                    
-                    # Extract the actual subdataset name from description
-                    if 'SurfaceReflectanceVNIR' in subdataset_desc:
-                        # VNIR subdatasets
-                        if 'Band1' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceVNIR:Band1'
-                            band_key = 'band1'
-                            band_type = 'VNIR'
-                        elif 'Band2' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceVNIR:Band2'
-                            band_key = 'band2'
-                            band_type = 'VNIR'
-                        elif 'Band3N' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceVNIR:Band3N'
-                            band_key = 'band3n'
-                            band_type = 'VNIR'
-                        else:
-                            continue
-                            
-                    elif 'SurfaceReflectanceSWIR' in subdataset_desc:
-                        # SWIR subdatasets
-                        if 'Band4' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceSWIR:Band4'
-                            band_key = 'band4'
-                            band_type = 'SWIR'
-                        elif 'Band5' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceSWIR:Band5'
-                            band_key = 'band5'
-                            band_type = 'SWIR'
-                        elif 'Band6' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceSWIR:Band6'
-                            band_key = 'band6'
-                            band_type = 'SWIR'
-                        elif 'Band7' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceSWIR:Band7'
-                            band_key = 'band7'
-                            band_type = 'SWIR'
-                        elif 'Band8' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceSWIR:Band8'
-                            band_key = 'band8'
-                            band_type = 'SWIR'
-                        elif 'Band9' in subdataset_desc:
-                            eos_path = f'HDF4_EOS:EOS_SWATH:"{hdf_path}":SurfaceReflectanceSWIR:Band9'
-                            band_key = 'band9'
-                            band_type = 'SWIR'
-                        else:
-                            continue
-                    else:
-                        # Try using the original subdataset path
-                        eos_path = subdataset_path
-                        band_key = f'band_{i}'
-                        band_type = 'UNKNOWN'
-                    
-                    self.log_message.emit(f"Trying EOS path: {eos_path}")
-                    
-                    # Open the subdataset using the proper EOS path
-                    sub_ds = gdal.Open(eos_path, gdal.GA_ReadOnly)
-                    if sub_ds is None:
-                        self.log_message.emit(f"⚠️ Could not open EOS path, trying original...")
-                        # Fallback to original path
-                        sub_ds = gdal.Open(subdataset_path, gdal.GA_ReadOnly)
-                        if sub_ds is None:
-                            self.log_message.emit(f"⚠️ Could not open subdataset: {subdataset_desc}")
-                            continue
-                    
-                    # Read the data
-                    band_array = None
                     
                     try:
-                        # Get dimensions first
-                        xsize = sub_ds.RasterXSize
-                        ysize = sub_ds.RasterYSize
-                        band_count = sub_ds.RasterCount
+                        sub_ds = gdal.Open(path, gdal.GA_ReadOnly)
+                        if sub_ds is None:
+                            log_callback(f"⚠️ Could not open subdataset: {name}")
+                            continue
                         
-                        self.log_message.emit(f"Subdataset info: {xsize}x{ysize}, {band_count} bands")
+                        log_callback(f"📏 Subdataset dimensions: {sub_ds.RasterXSize}x{sub_ds.RasterYSize}, {sub_ds.RasterCount} bands")
                         
-                        if band_count > 0:
-                            band = sub_ds.GetRasterBand(1)
-                            if band is not None:
-                                # Try reading with explicit parameters
-                                band_array = band.ReadAsArray(0, 0, xsize, ysize)
+                        bands = []
+                        for j in range(1, sub_ds.RasterCount + 1):
+                            band = sub_ds.GetRasterBand(j)
+                            
+                            try:
+                                band_type = band.DataType
+                                band_xsize = band.XSize
+                                band_ysize = band.YSize
                                 
-                                if band_array is None:
-                                    self.log_message.emit(f"⚠️ ReadAsArray failed, trying ReadRaster...")
-                                    
-                                    # Try ReadRaster as backup
-                                    raw_data = sub_ds.ReadRaster(0, 0, xsize, ysize, xsize, ysize, gdal.GDT_UInt16)
-                                    if raw_data:
-                                        band_array = np.frombuffer(raw_data, dtype=np.uint16)
-                                        band_array = band_array.reshape(ysize, xsize)
+                                # === FIXED SECTION: Multiple reading strategies ===
+                                band_data = None
+                                
+                                # Strategy 1: Standard ReadAsArray
+                                try:
+                                    band_data = band.ReadAsArray()
+                                    if band_data is not None and isinstance(band_data, np.ndarray) and band_data.size > 0:
+                                        log_callback(f"✅ Strategy 1 (ReadAsArray) successful for band {j}")
+                                    else:
+                                        band_data = None
+                                except Exception as e:
+                                    log_callback(f"⚠️ Strategy 1 failed: {str(e)}")
+                                    band_data = None
+                                
+                                # Strategy 2: ReadAsArray with explicit parameters
+                                if band_data is None:
+                                    try:
+                                        log_callback(f"🔄 Trying Strategy 2: ReadAsArray with explicit parameters for band {j}...")
+                                        band_data = band.ReadAsArray(0, 0, band_xsize, band_ysize)
+                                        if band_data is not None and isinstance(band_data, np.ndarray) and band_data.size > 0:
+                                            log_callback(f"✅ Strategy 2 successful for band {j}")
+                                        else:
+                                            band_data = None
+                                    except Exception as e:
+                                        log_callback(f"⚠️ Strategy 2 failed: {str(e)}")
+                                        band_data = None
+                                
+                                # Strategy 3: Chunked reading test first
+                                if band_data is None:
+                                    try:
+                                        log_callback(f"🔄 Trying Strategy 3: Chunked reading test for band {j}...")
+                                        chunk_size = min(100, band_xsize, band_ysize)
+                                        test_chunk = band.ReadAsArray(0, 0, chunk_size, chunk_size)
+                                        
+                                        if test_chunk is not None and isinstance(test_chunk, np.ndarray) and test_chunk.size > 0:
+                                            log_callback(f"✅ Test chunk successful, reading full band {j}...")
+                                            band_data = band.ReadAsArray(0, 0, band_xsize, band_ysize)
+                                            
+                                            if band_data is not None and isinstance(band_data, np.ndarray) and band_data.size > 0:
+                                                log_callback(f"✅ Strategy 3 successful for band {j}")
+                                            else:
+                                                band_data = None
+                                        else:
+                                            log_callback(f"⚠️ Test chunk failed for band {j}")
+                                            band_data = None
+                                    except Exception as e:
+                                        log_callback(f"⚠️ Strategy 3 failed: {str(e)}")
+                                        band_data = None
+                                
+                                # Strategy 4: Pre-allocated numpy array with ReadAsArray
+                                if band_data is None:
+                                    try:
+                                        log_callback(f"🔄 Trying Strategy 4: Pre-allocated array for band {j}...")
+                                        dtype_map = {
+                                            gdal.GDT_Byte: np.uint8,
+                                            gdal.GDT_UInt16: np.uint16,
+                                            gdal.GDT_Int16: np.int16,
+                                            gdal.GDT_UInt32: np.uint32,
+                                            gdal.GDT_Int32: np.int32,
+                                            gdal.GDT_Float32: np.float32,
+                                            gdal.GDT_Float64: np.float64
+                                        }
+                                        numpy_dtype = dtype_map.get(band_type, np.int16)
+                                        
+                                        # Pre-allocate array
+                                        band_data = np.zeros((band_ysize, band_xsize), dtype=numpy_dtype)
+                                        result = band.ReadAsArray(buf_obj=band_data)
+                                        
+                                        if result is not None and np.any(band_data != 0):
+                                            log_callback(f"✅ Strategy 4 successful for band {j}")
+                                        else:
+                                            log_callback(f"⚠️ Strategy 4 returned empty data for band {j}")
+                                            band_data = None
+                                    except Exception as e:
+                                        log_callback(f"⚠️ Strategy 4 failed: {str(e)}")
+                                        band_data = None
+                                
+                                # Strategy 5: GDAL ReadRaster with manual conversion
+                                if band_data is None:
+                                    try:
+                                        log_callback(f"🔄 Trying Strategy 5: ReadRaster for band {j}...")
+                                        raw_data = band.ReadRaster(0, 0, band_xsize, band_ysize)
+                                        
+                                        if raw_data:
+                                            dtype_map = {
+                                                gdal.GDT_Byte: np.uint8,
+                                                gdal.GDT_UInt16: np.uint16,
+                                                gdal.GDT_Int16: np.int16,
+                                                gdal.GDT_UInt32: np.uint32,
+                                                gdal.GDT_Int32: np.int32,
+                                                gdal.GDT_Float32: np.float32,
+                                                gdal.GDT_Float64: np.float64
+                                            }
+                                            numpy_dtype = dtype_map.get(band_type, np.int16)
+                                            
+                                            try:
+                                                band_data = np.frombuffer(raw_data, dtype=numpy_dtype).reshape(band_ysize, band_xsize)
+                                                if band_data is not None and band_data.size > 0:
+                                                    log_callback(f"✅ Strategy 5 successful for band {j}")
+                                                else:
+                                                    band_data = None
+                                            except Exception as reshape_error:
+                                                log_callback(f"⚠️ Strategy 5 reshape failed: {str(reshape_error)}")
+                                                band_data = None
+                                        else:
+                                            log_callback(f"⚠️ Strategy 5: ReadRaster returned no data for band {j}")
+                                            band_data = None
+                                    except Exception as e:
+                                        log_callback(f"⚠️ Strategy 5 failed: {str(e)}")
+                                        band_data = None
+                                
+                                # Strategy 6: Block-by-block reading
+                                if band_data is None:
+                                    try:
+                                        log_callback(f"🔄 Trying Strategy 6: Block-by-block reading for band {j}...")
+                                        
+                                        # Initialize array
+                                        dtype_map = {
+                                            gdal.GDT_Byte: np.uint8,
+                                            gdal.GDT_UInt16: np.uint16,
+                                            gdal.GDT_Int16: np.int16,
+                                            gdal.GDT_UInt32: np.uint32,
+                                            gdal.GDT_Int32: np.int32,
+                                            gdal.GDT_Float32: np.float32,
+                                            gdal.GDT_Float64: np.float64
+                                        }
+                                        numpy_dtype = dtype_map.get(band_type, np.int16)
+                                        band_data = np.zeros((band_ysize, band_xsize), dtype=numpy_dtype)
+                                        
+                                        # Read in blocks
+                                        block_size = min(512, band_xsize, band_ysize)
+                                        successful_blocks = 0
+                                        total_blocks = 0
+                                        
+                                        for y in range(0, band_ysize, block_size):
+                                            for x in range(0, band_xsize, block_size):
+                                                x_size = min(block_size, band_xsize - x)
+                                                y_size = min(block_size, band_ysize - y)
+                                                total_blocks += 1
+                                                
+                                                try:
+                                                    block_data = band.ReadAsArray(x, y, x_size, y_size)
+                                                    if block_data is not None and isinstance(block_data, np.ndarray):
+                                                        band_data[y:y+y_size, x:x+x_size] = block_data
+                                                        successful_blocks += 1
+                                                except Exception as block_error:
+                                                    log_callback(f"⚠️ Block read failed at ({x},{y}): {str(block_error)}")
+                                        
+                                        if successful_blocks > 0:
+                                            success_rate = successful_blocks / total_blocks
+                                            log_callback(f"✅ Strategy 6: Read {successful_blocks}/{total_blocks} blocks ({success_rate:.1%}) for band {j}")
+                                            if success_rate > 0.5:  # Accept if we got more than 50% of blocks
+                                                log_callback(f"✅ Strategy 6 successful for band {j}")
+                                            else:
+                                                log_callback(f"⚠️ Strategy 6: Insufficient data ({success_rate:.1%}) for band {j}")
+                                                band_data = None
+                                        else:
+                                            log_callback(f"⚠️ Strategy 6: No blocks successfully read for band {j}")
+                                            band_data = None
+                                            
+                                    except Exception as e:
+                                        log_callback(f"⚠️ Strategy 6 failed: {str(e)}")
+                                        band_data = None
+                                
+                                # Final validation
+                                if band_data is None:
+                                    log_callback(f"❌ All read strategies failed for band {j} in subdataset: {name}")
+                                    continue
+                                
+                                # Verify we have a valid numpy array
+                                if not isinstance(band_data, np.ndarray):
+                                    log_callback(f"❌ Read data is not a numpy array for band {j}: {type(band_data)}")
+                                    continue
+                                
+                                if band_data.size == 0:
+                                    log_callback(f"❌ Read data is empty for band {j}")
+                                    continue
+                                
+                                # Check for valid data range (ASTER L2 should be 0-10000 range typically)
+                                data_min, data_max = np.nanmin(band_data), np.nanmax(band_data)
+                                log_callback(f"📊 Band {j} data range: {data_min} to {data_max}")
+                                
+                                # Convert to reflectance if needed (ASTER L2 uses scale factor 0.001)
+                                if data_max > 10:  # Likely needs scaling
+                                    band_data = band_data.astype(np.float32) * 0.001
+                                    band_data = np.clip(band_data, 0, 1)
+                                    log_callback(f"🔄 Applied reflectance scaling to band {j}")
+                                
+                                bands.append(band_data)
+                                log_callback(f"✅ Successfully read band {j}: {band_data.shape}, dtype: {band_data.dtype}")
+                                
+                            except Exception as band_error:
+                                log_callback(f"❌ Error processing band {j}: {str(band_error)}")
+                                continue
                         
-                        # Validate the result
-                        if band_array is not None and isinstance(band_array, np.ndarray):
-                            if band_array.size > 0 and len(band_array.shape) == 2:
-                                # Get geospatial information
-                                geotransform = sub_ds.GetGeoTransform()
-                                projection = sub_ds.GetProjection()
+                        # Store the bands if we got any
+                        if bands:
+                            # Determine band type from subdataset name
+                            if 'VNIR' in name.upper():
+                                if 'vnir_bands' not in data:
+                                    data['vnir_bands'] = {}
+                                    data['vnir_geotransform'] = sub_ds.GetGeoTransform()
+                                    data['vnir_projection'] = sub_ds.GetProjection()
                                 
-                                self.log_message.emit(f"✅ Successfully read: {band_array.shape}, dtype: {band_array.dtype}")
-                                self.log_message.emit(f"   Data range: {np.min(band_array)} to {np.max(band_array)}")
+                                # Map to specific VNIR bands
+                                for idx, band_data in enumerate(bands):
+                                    band_names = ['BAND1', 'BAND2', 'BAND3N']
+                                    if idx < len(band_names):
+                                        data['vnir_bands'][band_names[idx]] = band_data
+                                        log_callback(f"✅ Stored {band_names[idx]} from VNIR subdataset")
+                            
+                            elif 'SWIR' in name.upper():
+                                if 'swir_bands' not in data:
+                                    data['swir_bands'] = {}
+                                    data['swir_geotransform'] = sub_ds.GetGeoTransform()
+                                    data['swir_projection'] = sub_ds.GetProjection()
                                 
-                                # Store the band data
-                                if band_type == 'VNIR':
-                                    extracted_data['vnir_bands'][band_key] = band_array
-                                    if 'vnir_geotransform' not in extracted_data:
-                                        extracted_data['vnir_geotransform'] = geotransform
-                                        extracted_data['vnir_projection'] = projection
-                                    self.log_message.emit(f"✅ Stored VNIR {band_key}")
-                                    
-                                elif band_type == 'SWIR':
-                                    extracted_data['swir_bands'][band_key] = band_array
-                                    if 'swir_geotransform' not in extracted_data:
-                                        extracted_data['swir_geotransform'] = geotransform
-                                        extracted_data['swir_projection'] = projection
-                                    self.log_message.emit(f"✅ Stored SWIR {band_key}")
+                                # Map to specific SWIR bands
+                                for idx, band_data in enumerate(bands):
+                                    band_names = ['BAND4', 'BAND5', 'BAND6', 'BAND7', 'BAND8', 'BAND9']
+                                    if idx < len(band_names):
+                                        data['swir_bands'][band_names[idx]] = band_data
+                                        log_callback(f"✅ Stored {band_names[idx]} from SWIR subdataset")
+                            
                             else:
-                                self.log_message.emit(f"⚠️ Invalid array: shape={band_array.shape}, size={band_array.size}")
+                                # Generic storage for unknown band types
+                                log_callback(f"⚠️ Unknown subdataset type: {name}, storing generically")
+                                data[f'subdataset_{i}'] = bands
+                        
                         else:
-                            self.log_message.emit(f"⚠️ No valid data read from subdataset")
+                            log_callback(f"❌ No bands successfully read from subdataset: {name}")
                     
-                    except Exception as read_error:
-                        self.log_message.emit(f"❌ Read error: {str(read_error)}")
+                    except Exception as subdataset_error:
+                        log_callback(f"❌ Error processing subdataset {name}: {str(subdataset_error)}")
                         continue
-                    
-                    finally:
-                        if sub_ds is not None:
-                            sub_ds = None
-                    
-                except Exception as e:
-                    self.log_message.emit(f"⚠️ Subdataset {i+1} failed: {str(e)}")
-                    continue
             
-            # Clean up main dataset
-            dataset = None
+            else:
+                log_callback("❌ No subdatasets found in HDF file")
+                return {}
             
-            # Validate results
-            vnir_count = len(extracted_data.get('vnir_bands', {}))
-            swir_count = len(extracted_data.get('swir_bands', {}))
-            total_bands = vnir_count + swir_count
+            # Calculate total bands extracted
+            total_vnir = len(data.get('vnir_bands', {}))
+            total_swir = len(data.get('swir_bands', {}))
+            total_bands = total_vnir + total_swir
             
             if total_bands == 0:
-                raise Exception("No valid band data extracted from any subdatasets")
+                raise Exception("No valid band data could be extracted from HDF file")
             
-            self.log_message.emit(f"✅ Extraction complete: {vnir_count} VNIR, {swir_count} SWIR bands")
-            self.log_message.emit(f"   VNIR bands: {list(extracted_data.get('vnir_bands', {}).keys())}")
-            self.log_message.emit(f"   SWIR bands: {list(extracted_data.get('swir_bands', {}).keys())}")
-            
-            return extracted_data
+            log_callback(f"✅ Successfully extracted {total_bands} bands from HDF file ({total_vnir} VNIR, {total_swir} SWIR)")
+            return data
             
         except Exception as e:
-            self.log_message.emit(f"❌ HDF-EOS read failed: {str(e)}")
-            return None
-    
+            log_callback(f"❌ GDAL read error for {file_path}: {str(e)}")
+            raise
+
+
+
+
+    def validate_extracted_data(self, data, log_callback):
+        """Validate that extracted data is usable"""
+        try:
+            log_callback("🔍 Validating extracted data...")
+            
+            if not data:
+                log_callback("❌ No data to validate")
+                return False
+            
+            total_bands = 0
+            
+            # Check VNIR bands
+            if 'vnir_bands' in data:
+                vnir_bands = data['vnir_bands']
+                log_callback(f"📊 VNIR bands found: {list(vnir_bands.keys())}")
+                
+                for band_name, band_data in vnir_bands.items():
+                    if isinstance(band_data, np.ndarray) and band_data.size > 0:
+                        total_bands += 1
+                        valid_pixels = np.sum((band_data > 0) & (~np.isnan(band_data)))
+                        total_pixels = band_data.size
+                        log_callback(f"✅ {band_name}: {band_data.shape}, {valid_pixels}/{total_pixels} valid pixels")
+                    else:
+                        log_callback(f"❌ {band_name}: Invalid data")
+            
+            # Check SWIR bands
+            if 'swir_bands' in data:
+                swir_bands = data['swir_bands']
+                log_callback(f"📊 SWIR bands found: {list(swir_bands.keys())}")
+                
+                for band_name, band_data in swir_bands.items():
+                    if isinstance(band_data, np.ndarray) and band_data.size > 0:
+                        total_bands += 1
+                        valid_pixels = np.sum((band_data > 0) & (~np.isnan(band_data)))
+                        total_pixels = band_data.size
+                        log_callback(f"✅ {band_name}: {band_data.shape}, {valid_pixels}/{total_pixels} valid pixels")
+                    else:
+                        log_callback(f"❌ {band_name}: Invalid data")
+            
+            if total_bands >= 3:  # Need at least 3 bands for basic processing
+                log_callback(f"✅ Data validation successful: {total_bands} valid bands")
+                return True
+            else:
+                log_callback(f"❌ Data validation failed: Only {total_bands} valid bands (need at least 3)")
+                return False
+                
+        except Exception as e:
+            log_callback(f"❌ Data validation error: {str(e)}")
+            return False
+
+
+
     def process_combined_data(self, all_band_data, geotransforms):
         """Process and resample combined ASTER data"""
         try:
